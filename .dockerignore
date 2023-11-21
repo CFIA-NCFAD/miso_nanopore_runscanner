@@ -1,0 +1,9 @@
+.git
+.cache
+dist
+tests
+*.egg-info
+*.ipynb
+*.db
+*.txt
+*.json
