@@ -50,7 +50,7 @@ def parse_run_summary(rundir: Path) -> dict | None:
     return None
 
 
-def parse_seqsummary(seqsummary_path: Path) -> list[dict]:
+def parse_seqsummary(seqsummary_path: Path) -> list[dict] | None:
     try:
         with open(seqsummary_path) as f:
             headers: list[str]
@@ -84,7 +84,7 @@ def parse_seqsummary(seqsummary_path: Path) -> list[dict]:
         return out
     except Exception as e:
         logger.warning(f"Error parsing {seqsummary_path}: {e}")
-        return []
+        return None
 
 
 def parse_pod5_metadata(pod5_path: Path) -> dict | None:
@@ -192,7 +192,8 @@ def create_run_response(rundir: Path) -> RunResponse:
         seqsummary_path = next(rundir.glob("sequencing_summary*.txt"))
         if seqsummary_path.exists():
             barcode_stats = parse_seqsummary(seqsummary_path)
-            metrics.append(create_metrics_table_dict(barcode_stats))
+            if barcode_stats:
+                metrics.append(create_metrics_table_dict(barcode_stats))
 
     pod5_path = find_pod5(rundir)
     p5_md = parse_pod5_metadata(pod5_path)
