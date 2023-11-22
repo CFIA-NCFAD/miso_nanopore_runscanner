@@ -1,15 +1,16 @@
 import json
-import os
+import logging
 from collections import defaultdict
 from pathlib import Path
 from typing import Iterator
 
 import pendulum
 import pod5
-import polars as pl
 
 from miso_nanopore_runscanner.config import PARSE_SEQSUMMARY
 from miso_nanopore_runscanner.models import RunResponse, RunStatus
+
+logger = logging.getLogger(__name__)
 
 
 def get_nanopore_runs(basedir: Path) -> Iterator[Path]:
@@ -50,36 +51,40 @@ def parse_run_summary(rundir: Path) -> dict | None:
 
 
 def parse_seqsummary(seqsummary_path: Path) -> list[dict]:
-    with open(seqsummary_path) as f:
-        headers: list[str]
-        for header_line in f:
-            headers = header_line.split('\t')
-            break
-        header_index = {header: i for i, header in enumerate(headers)}
-        barcode_index = header_index['alias']
-        read_length_index = header_index['sequence_length_template']
-        barcode_stats = defaultdict(lambda: defaultdict(int))
-        for line in f:
-            sp = line.strip().split('\t')
-            if len(sp) != len(headers):
-                continue
-            barcode = sp[barcode_index]
-            read_length = int(sp[read_length_index])
-            barcode_stats[barcode]['sum_read_length'] += read_length
-            barcode_stats[barcode]['count'] += 1
-    out = []
-    ordered_barcodes = list(barcode_stats.keys())
-    ordered_barcodes.sort()
-    for barcode in ordered_barcodes:
-        stats = barcode_stats[barcode]
-        sum_len = stats['sum_read_length']
-        n = stats['count']
-        out.append({
-            'barcode': barcode,
-            'mean_length': sum_len / n,
-            'number_of_reads': n
-        })
-    return out
+    try:
+        with open(seqsummary_path) as f:
+            headers: list[str]
+            for header_line in f:
+                headers = header_line.split('\t')
+                break
+            header_index = {header: i for i, header in enumerate(headers)}
+            barcode_index = header_index['alias']
+            read_length_index = header_index['sequence_length_template']
+            barcode_stats = defaultdict(lambda: defaultdict(int))
+            for line in f:
+                sp = line.strip().split('\t')
+                if len(sp) != len(headers):
+                    continue
+                barcode = sp[barcode_index]
+                read_length = int(sp[read_length_index])
+                barcode_stats[barcode]['sum_read_length'] += read_length
+                barcode_stats[barcode]['count'] += 1
+        out = []
+        ordered_barcodes = list(barcode_stats.keys())
+        ordered_barcodes.sort()
+        for barcode in ordered_barcodes:
+            stats = barcode_stats[barcode]
+            sum_len = stats['sum_read_length']
+            n = stats['count']
+            out.append({
+                'barcode': barcode,
+                'mean_length': sum_len / n,
+                'number_of_reads': n
+            })
+        return out
+    except IndexError | KeyError as e:
+        logger.warning(f"Error parsing {seqsummary_path}: {e}")
+        return []
 
 
 def parse_pod5_metadata(pod5_path: Path) -> dict | None:
