@@ -82,7 +82,7 @@ def parse_seqsummary(seqsummary_path: Path) -> list[dict]:
                 'number_of_reads': n
             })
         return out
-    except IndexError | KeyError as e:
+    except Exception as e:
         logger.warning(f"Error parsing {seqsummary_path}: {e}")
         return []
 
