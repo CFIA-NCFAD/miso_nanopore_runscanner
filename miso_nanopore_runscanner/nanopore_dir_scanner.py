@@ -189,8 +189,8 @@ def create_run_response(rundir: Path) -> RunResponse:
             'acquisition_stopped']).astimezone(pendulum.UTC)
         completion_date = pendulum.timezone('UTC').convert(dt).to_iso8601_string()
     if PARSE_SEQSUMMARY:
-        seqsummary_path = next(rundir.glob("sequencing_summary*.txt"))
-        if seqsummary_path.exists():
+        seqsummary_path = find_seq_summary_txt(rundir)
+        if seqsummary_path is not None and seqsummary_path.exists():
             barcode_stats = parse_seqsummary(seqsummary_path)
             if barcode_stats:
                 metrics.append(create_metrics_table_dict(barcode_stats))
@@ -224,3 +224,10 @@ def create_run_response(rundir: Path) -> RunResponse:
         sequencerName=sequencer_name,
         metrics=json.dumps(metrics) if metrics else None,
     )
+
+
+def find_seq_summary_txt(rundir: Path) -> Path | None:
+    try:
+        return next(rundir.glob("sequencing_summary*.txt"))
+    except Exception:
+        return None

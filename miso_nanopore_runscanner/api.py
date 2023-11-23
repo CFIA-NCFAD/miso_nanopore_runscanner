@@ -62,7 +62,7 @@ async def runs() -> ProgressiveRunResponse:
     with Session(engine) as session:
         run_responses = session.query(RunResponse).all()
         return ProgressiveRunResponse(
-            epoch=len(run_responses) - 1,
+            epoch=len(run_responses) - 1 if len(run_responses) > 0 else 0,
             updates=run_responses,
         )
 
