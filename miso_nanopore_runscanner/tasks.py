@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from rocketry import Rocketry
-from rocketry.conds import every, retry
+from rocketry.conds import every
 from sqlmodel import Session, select, col
 
 app = Rocketry(task_execution="process", instant_shutdown=True)
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 basedir = Path(BASEDIR)
 
 
-@app.task(every('5 minutes', based='finish') | retry(100), execution="process", timeout=timedelta(hours=24))
+@app.task(every('5 minutes', based='finish'), execution="process", timeout=timedelta(hours=24))
 async def find_nanopore_runs() -> bool:
     logger.info(f"Scanning {basedir}")
     runs: list[Path] = list(get_nanopore_runs(basedir))
