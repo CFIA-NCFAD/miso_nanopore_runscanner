@@ -1,12 +1,12 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from rocketry import Rocketry
-from rocketry.conds import every
+from rocketry.conds import every, retry
 from sqlmodel import Session, select, col
 
-app = Rocketry(execution="process")
+app = Rocketry(task_execution="process", instant_shutdown=True)
 
 from miso_nanopore_runscanner.config import BASEDIR
 from miso_nanopore_runscanner.nanopore_dir_scanner import get_nanopore_runs, create_run_response, get_run_alias
@@ -17,15 +17,14 @@ logger = logging.getLogger(__name__)
 basedir = Path(BASEDIR)
 
 
-@app.task(every('5 minutes', based='finish'), execution="process")
+@app.task(every('5 minutes', based='finish') | retry(100), execution="process", timeout=timedelta(hours=24))
 async def find_nanopore_runs() -> bool:
     logger.info(f"Scanning {basedir}")
+    runs: list[Path] = list(get_nanopore_runs(basedir))
+    logger.info(f"Found {len(runs)} runs. Scanning each run.")
+    runs.sort(key=lambda run: run.stat().st_mtime_ns)
+    logger.info(f"Sorted runs by mtime. {runs=}")
     with Session(engine) as session:
-
-        runs: list[Path] = list(get_nanopore_runs(basedir))
-        logger.info(f"Found {len(runs)} runs. Scanning each run.")
-        runs.sort(key=lambda run: run.stat().st_mtime_ns)
-        logger.info(f"Sorted runs by mtime. {runs=}")
         for rundir in runs:
             logger.info(f"Querying for existing RunScanStatus of {rundir}.")
             rundir_str = str(rundir.resolve().absolute())
@@ -56,7 +55,7 @@ async def find_nanopore_runs() -> bool:
         return True
 
 
-def scan_nanopore_rundir(session: Session, rundir: str) -> bool:
+def scan_nanopore_rundir(session: Session, rundir: str) -> None:
     logger.info(f"Scanning run at {rundir}. Querying for existing RunResponse.")
     statement = select(RunResponse).where(RunResponse.sequencerFolderPath == rundir)
     resp = session.exec(statement).first()
@@ -64,7 +63,7 @@ def scan_nanopore_rundir(session: Session, rundir: str) -> bool:
         logger.info(f"Found existing RunResponse for {rundir}. {resp=}")
         if resp.healthType in [RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.STOPPED]:
             logger.info(f"Run {rundir} is in a terminal state. Skipping.")
-            return True
+            return
     logger.info(f"Creating new RunResponse for {rundir}.")
     new_resp = create_run_response(Path(rundir))
     # check if there are other runs with the same flowcell/container serial number
@@ -76,8 +75,9 @@ def scan_nanopore_rundir(session: Session, rundir: str) -> bool:
             f"as {new_resp.runAlias}."
         )
         flowcell_increment = max(
-            int(r.containerSerialNumber.split('_')[1]) if '_' in r.containerSerialNumber else 0 for r in other_resps
+            int(r.containerSerialNumber.split('_')[1]) if '_' in r.containerSerialNumber else 1 for r in other_resps
         )
+        # first re-use of a flowcell will have _2 appended to the flowcell serial number
         new_resp.containerSerialNumber = f"{new_resp.containerSerialNumber}_{flowcell_increment + 1}"
         logger.info(f'Flowcell set to "{new_resp.containerSerialNumber}" for run "{new_resp.runAlias}".')
 
@@ -103,7 +103,6 @@ def scan_nanopore_rundir(session: Session, rundir: str) -> bool:
         logger.info(f"Saving new RunResponse for {rundir}.")
         session.add(new_resp)
         session.commit()
-    return True
 
 
 if __name__ == "__main__":
