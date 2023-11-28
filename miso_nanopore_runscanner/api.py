@@ -58,7 +58,17 @@ class ProgressiveRunResponse(BaseModel):
 
 
 @app.get("/runs/progressive")
-async def runs() -> ProgressiveRunResponse:
+async def get_runs_progressive() -> ProgressiveRunResponse:
+    return await get_all_runs()
+
+
+@app.post("/runs/progressive")
+async def get_runs_progressive(epoch: int = 0, token: int = 0) -> ProgressiveRunResponse:
+    logger.info(f"Received /runs/progressive POST request with epoch {epoch} and token {token}.")
+    return await get_all_runs()
+
+
+async def get_all_runs():
     with Session(engine) as session:
         run_responses = session.query(RunResponse).all()
         return ProgressiveRunResponse(
