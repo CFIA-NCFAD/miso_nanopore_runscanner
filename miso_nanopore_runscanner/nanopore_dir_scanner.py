@@ -78,7 +78,7 @@ def parse_seqsummary(seqsummary_path: Path) -> list[dict] | None:
             n = stats['count']
             out.append({
                 'barcode': barcode,
-                'mean_length': sum_len / n,
+                'mean_length': int(sum_len / n),
                 'number_of_reads': n
             })
         return out
@@ -201,7 +201,7 @@ def create_run_response(rundir: Path) -> RunResponse:
     sequencing_kit = get_sequencing_kit(p5_md)
     software = get_software(p5_md)
     container_model = get_container_model(p5_md)
-    container_serial = get_container_serial(p5_md)
+    container_serial = f"{get_container_serial(p5_md)}_{run_alias.split('_')[-1]}"
     protocol_version = get_protocol_version(p5_md)
     sequencer_name = get_sequencer_name(p5_md)
 

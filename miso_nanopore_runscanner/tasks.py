@@ -14,13 +14,13 @@ from miso_nanopore_runscanner.models import RunResponse, RunStatus, RunScanStatu
 from miso_nanopore_runscanner.db import engine
 
 logger = logging.getLogger(__name__)
-basedir = Path(BASEDIR)
+basedir = [Path(x) for x in BASEDIR.split(':')]
 
 
 @app.task(every('5 minutes', based='finish'), execution="process", timeout=timedelta(hours=24))
 async def find_nanopore_runs() -> bool:
     logger.info(f"Scanning {basedir}")
-    runs: list[Path] = list(get_nanopore_runs(basedir))
+    runs: list[Path] = [x for d in basedir for x in get_nanopore_runs(d)]
     logger.info(f"Found {len(runs)} runs. Scanning each run.")
     runs.sort(key=lambda run: run.stat().st_mtime_ns)
     logger.info(f"Sorted runs by mtime. {runs=}")
@@ -66,21 +66,6 @@ def scan_nanopore_rundir(session: Session, rundir: str) -> None:
             return
     logger.info(f"Creating new RunResponse for {rundir}.")
     new_resp = create_run_response(Path(rundir))
-    # check if there are other runs with the same flowcell/container serial number
-    stmt = select(RunResponse).where(col(RunResponse.containerSerialNumber).like(new_resp.containerSerialNumber + "%"))
-    other_resps = session.exec(stmt).all()
-    if other_resps and (resp is None or resp.containerSerialNumber is None):
-        logger.info(
-            f"Found other runs with the same flowcell ({new_resp.containerSerialNumber}) "
-            f"as {new_resp.runAlias}."
-        )
-        flowcell_increment = max(
-            int(r.containerSerialNumber.split('_')[1]) if '_' in r.containerSerialNumber else 1 for r in other_resps
-        )
-        # first re-use of a flowcell will have _2 appended to the flowcell serial number
-        new_resp.containerSerialNumber = f"{new_resp.containerSerialNumber}_{flowcell_increment + 1}"
-        logger.info(f'Flowcell set to "{new_resp.containerSerialNumber}" for run "{new_resp.runAlias}".')
-
     if resp:
         logger.info(f"Updating existing RunResponse for {rundir}.")
         resp.healthType = new_resp.healthType
