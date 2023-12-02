@@ -4,6 +4,7 @@ from pathlib import Path
 
 from rocketry import Rocketry
 from rocketry.conds import every
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select, col
 
 app = Rocketry(task_execution="process", instant_shutdown=True)
@@ -46,12 +47,17 @@ async def find_nanopore_runs() -> bool:
             if not run_scan_status.is_scanned or resp is None or resp.healthType not in [RunStatus.COMPLETED,
                                                                                          RunStatus.FAILED,
                                                                                          RunStatus.STOPPED]:
-                logger.info(f"Scanning Run '{run_scan_status.runAlias}' at {rundir}.")
-                scan_nanopore_rundir(session, rundir_str)
-                run_scan_status.is_scanned = True
-                run_scan_status.scanned_at = datetime.now()
-                session.add(run_scan_status)
-                session.commit()
+                try:
+                    logger.info(f"Scanning Run '{run_scan_status.runAlias}' at {rundir}.")
+                    scan_nanopore_rundir(session, rundir_str)
+                    run_scan_status.is_scanned = True
+                    run_scan_status.scanned_at = datetime.now()
+                    session.add(run_scan_status)
+                    session.commit()
+                except IntegrityError as e:
+                    logger.error(f"Error scanning {rundir}. {e=}")
+                    session.rollback()
+                    continue
         return True
 
 
