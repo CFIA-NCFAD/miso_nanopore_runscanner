@@ -41,7 +41,7 @@ async def find_nanopore_runs() -> bool:
                 session.add(run_scan_status)
                 session.commit()
                 session.refresh(run_scan_status)
-            statement = select(RunResponse).where(RunResponse.sequencerFolderPath == rundir_str)
+            statement = select(RunResponse).where(RunResponse.runAlias == run_scan_status.runAlias)
             resp = session.exec(statement).first()
             if not run_scan_status.is_scanned or resp is None or resp.healthType not in [RunStatus.COMPLETED,
                                                                                          RunStatus.FAILED,
