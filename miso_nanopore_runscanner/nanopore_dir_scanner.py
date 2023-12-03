@@ -144,8 +144,13 @@ def get_sequencer_name(p5_md: dict) -> str:
 
 
 def get_sequencing_kit(p5_md: dict) -> str:
+    """Get the sequencing kit from the pod5 metadata.
+
+    >>> get_sequencing_kit({'sequencing_kit': ['sqk-rbk110-96']})
+    'SQK-RBK110-96'
+    """
     try:
-        return p5_md['sequencing_kit'][0]
+        return p5_md['sequencing_kit'][0].upper()
     except KeyError or IndexError:
         return ""
 
