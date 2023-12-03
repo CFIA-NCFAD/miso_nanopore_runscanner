@@ -44,12 +44,13 @@ async def find_nanopore_runs() -> bool:
                 session.refresh(run_scan_status)
             statement = select(RunResponse).where(RunResponse.runAlias == run_scan_status.runAlias)
             resp = session.exec(statement).first()
-            if not run_scan_status.is_scanned or resp is None or resp.healthType not in [RunStatus.COMPLETED,
-                                                                                         RunStatus.FAILED,
-                                                                                         RunStatus.STOPPED]:
+            if (not run_scan_status.is_scanned
+                or resp is None
+                or resp.healthType not in [RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.STOPPED]
+                ):
                 try:
                     logger.info(f"Scanning Run '{run_scan_status.runAlias}' at {rundir}.")
-                    scan_nanopore_rundir(session, rundir_str)
+                    scan_nanopore_rundir(session, rundir_str, run_scan_status.runAlias)
                     run_scan_status.is_scanned = True
                     run_scan_status.scanned_at = datetime.now()
                     session.add(run_scan_status)
@@ -57,13 +58,16 @@ async def find_nanopore_runs() -> bool:
                 except IntegrityError as e:
                     logger.error(f"Error scanning {rundir}. {e=}")
                     session.rollback()
-                    continue
+                    run_scan_status.is_scanned = True
+                    run_scan_status.scanned_at = datetime.now()
+                    session.add(run_scan_status)
+                    session.commit()
         return True
 
 
-def scan_nanopore_rundir(session: Session, rundir: str) -> None:
+def scan_nanopore_rundir(session: Session, rundir: str, run_alias: str) -> None:
     logger.info(f"Scanning run at {rundir}. Querying for existing RunResponse.")
-    statement = select(RunResponse).where(RunResponse.sequencerFolderPath == rundir)
+    statement = select(RunResponse).where(RunResponse.runAlias == run_alias)
     resp = session.exec(statement).first()
     if resp:
         logger.info(f"Found existing RunResponse for {rundir}. {resp=}")
