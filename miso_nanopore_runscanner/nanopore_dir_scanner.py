@@ -1,11 +1,10 @@
 import json
 import logging
+import pendulum
+import pod5
 from collections import defaultdict
 from pathlib import Path
 from typing import Iterator
-
-import pendulum
-import pod5
 
 from miso_nanopore_runscanner.config import PARSE_SEQSUMMARY
 from miso_nanopore_runscanner.models import RunResponse, RunStatus
@@ -14,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_nanopore_runs(basedir: Path) -> Iterator[Path]:
-    """Get Nanopore run directories that are 3 levels deep and contains a pod5 file."""
+    """Get Nanopore run directories that are 3 levels deep and contains a pod5, pod5_pass, pod5_fail or pod5_skip directory."""
     for sdir in basedir.iterdir():
         if not sdir.is_dir():
             continue
@@ -22,7 +21,12 @@ def get_nanopore_runs(basedir: Path) -> Iterator[Path]:
             if not ssdir.is_dir():
                 continue
             for sssdir in ssdir.iterdir():
-                if sssdir.is_dir() and find_pod5(sssdir) is not None:
+                if sssdir.is_dir() and (
+                        (sssdir / "pod5_pass").exists() or
+                        (sssdir / "pod5_fail").exists() or
+                        (sssdir / "pod5").exists() or
+                        (sssdir / "pod5_skip").exists()
+                ):
                     yield sssdir
 
 
