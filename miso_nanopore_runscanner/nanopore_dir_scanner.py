@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_nanopore_runs(basedir: Path) -> Iterator[Path]:
-    """Get Nanopore run directories that are 3 levels deep and have a pod5_pass directory."""
+    """Get Nanopore run directories that are 3 levels deep and contains a pod5 file."""
     for sdir in basedir.iterdir():
         if not sdir.is_dir():
             continue
@@ -22,7 +22,7 @@ def get_nanopore_runs(basedir: Path) -> Iterator[Path]:
             if not ssdir.is_dir():
                 continue
             for sssdir in ssdir.iterdir():
-                if sssdir.is_dir() and (sssdir / "pod5_pass").exists():
+                if sssdir.is_dir() and find_pod5(sssdir) is not None:
                     yield sssdir
 
 
